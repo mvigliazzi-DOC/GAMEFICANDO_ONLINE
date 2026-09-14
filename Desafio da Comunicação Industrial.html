@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desafio da Comunicação Industrial</title>
+    <style>
+        :root {
+            --primary: #0056b3;
+            --secondary: #ffc107;
+            --bg: #f4f7f6;
+            --text: #333;
+            --card-bg: #ffffff;
+            --success: #28a745;
+            --danger: #dc3545;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 15px;
+        }
+
+        .game-container {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            width: 100%;
+            max-width: 650px;
+            padding: 25px;
+            text-align: center;
+        }
+
+        header {
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: var(--primary);
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+
+        .score-board {
+            font-size: 1rem;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .screen {
+            display: none;
+        }
+
+        .active {
+            display: block;
+        }
+
+        p.description {
+            font-size: 0.95rem;
+            margin-bottom: 20px;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        .question-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #222;
+        }
+
+        .options-grid {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 18px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            width: 100%;
+        }
+
+        button:hover {
+            background-color: #004085;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .btn-option {
+            background-color: #e9ecef;
+            color: #333;
+            text-align: left;
+            border: 1px solid #ced4da;
+        }
+
+        .btn-option:hover {
+            background-color: #dee2e6;
+        }
+
+        .feedback {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            display: none;
+            font-size: 0.9rem;
+        }
+
+        .feedback.correct {
+            background-color: #d4edda;
+            color: #155724;
+            display: block;
+        }
+
+        .feedback.incorrect {
+            background-color: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+
+        .next-btn {
+            background-color: var(--success);
+            margin-top: 15px;
+            display: none;
+        }
+
+        .next-btn:hover {
+            background-color: #218838;
+        }
+
+        .final-score {
+            font-size: 1.8rem;
+            color: var(--primary);
+            margin: 15px 0;
+            font-weight: bold;
+        }
+
+        @media (max-width: 480px) {
+            .game-container {
+                padding: 15px;
+            }
+            h1 {
+                font-size: 1.3rem;
+            }
+            button {
+                padding: 10px 14px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="game-container">
+    <header>
+        <h1>Desafio da Comunicação Industrial</h1>
+        <div class="score-board">Pontuação: <span id="score">0</span> pts</div>
+    </header>
+
+    <div id="start-screen" class="screen active">
+        <p class="description">
+            Bem-vindo! No ambiente industrial, comunicar-se bem evita acidentes, desperdícios e retrabalho. Teste seus conhecimentos sobre o processo de comunicação e mostre que você está pronto para o mercado profissional!
+        </p>
+        <button onclick="startGame()">Iniciar Desafio</button>
+    </div>
+
+    <div id="game-screen" class="screen">
+        <div id="phase-tag" style="font-size: 0.8rem; font-weight: bold; color: var(--primary); text-transform: uppercase; margin-bottom: 8px;"></div>
+        <div class="question-title" id="question-text">Carregando pergunta...</div>
+        <div class="options-grid" id="options-container"></div>
+        <div id="feedback" class="feedback"></div>
+        <button id="next-btn" class="next-btn" onclick="nextQuestion()">Próxima Etapa</button>
+    </div>
+
+    <div id="end-screen" class="screen">
+        <h2>Desafio Concluído!</h2>
+        <p class="description" style="margin-top: 10px;">Confira seu desempenho na gestão da comunicação industrial:</p>
+        <div class="final-score" id="final-score">0 / 0</div>
+        <p id="final-message" class="description"></p>
+        <button onclick="restartGame()">Jogar Novamente</button>
+    </div>
+</div>
+
+<script>
+    const questions = [
+        // Fase 1: Elementos da Comunicação
+        {
+            phase: "Fase 1: Elementos da Comunicação",
+            question: "Um operador avisa o supervisor via rádio que a máquina precisa de manutenção. Quem é o EMISSOR nesse processo?",
+            options: [
+                "O rádio comunicador",
+                "O supervisor",
+                "O operador",
+                "A ordem de manutenção"
+            ],
+            correct: 2,
+            explanation: "O emissor é a pessoa que inicia a mensagem e a transmite ao receptor."
+        },
+        {
+            phase: "Fase 1: Elementos da Comunicação",
+            question: "Ao ler um manual de instruções técnico, qual elemento representa o CANAL de comunicação?",
+            options: [
+                "O texto impresso/digital do manual",
+                "O técnico de produção",
+                "As normas de segurança",
+                "A interpretação das instruções"
+            ],
+            correct: 0,
+            explanation: "O canal é o meio físico ou virtual utilizado para conduzir a mensagem até o receptor."
+        },
+        {
+            phase: "Fase 1: Elementos da Comunicação",
+            question: "O supervisor pede ao aprendiz para buscar 'a peça X'. O aprendiz repete: 'Confirmado, buscando a peça X na prateleira B'. Como chamamos esse retorno?",
+            options: [
+                "Ruído de canal",
+                "Feedback (ou Retroalimentação)",
+                "Decodificação incorreta",
+                "Sobrecarga de informação"
+            ],
+            correct: 1,
+            explanation: "O Feedback confirma ao emissor que a mensagem foi recebida e compreendida corretamente."
+        },
+
+        // Fase 2: Ruídos e Barreiras
+        {
+            phase: "Fase 2: Ruídos e Barreiras",
+            question: "O barulho forte das prensas na fábrica impediu que o operador ouvisse o alarme verbal. Isso representa qual tipo de ruído?",
+            options: [
+                "Ruído Psicológico",
+                "Ruído Físico/Ambiental",
+                "Ruído Semântico",
+                "Ruído Cultural"
+            ],
+            correct: 1,
+            explanation: "Ruídos físicos são sons externos ou interferências do ambiente que prejudicam a escuta."
+        },
+        {
+            phase: "Fase 2: Ruídos e Barreiras",
+            question: "Usar jargões e termos técnicos muito complexos com um cliente ou estagiário novo pode gerar qual barreira?",
+            options: [
+                "Ruído Semântico (dificuldade de interpretação dos significados)",
+                "Falha na conexão de rede",
+                "Falta de canal adequado",
+                "Ruído mecânico"
+            ],
+            correct: 0,
+            explanation: "Ruído semântico ocorre quando o código ou linguagem usada não é compreendida totalmente pelo receptor."
+        },
+
+        // Fase 3: Comunicação no Ambiente de Trabalho
+        {
+            phase: "Fase 3: Prática Profissional",
+            question: "Você identificou um risco de segurança em uma esteira rolante. Qual a atitude de comunicação correta?",
+            options: [
+                "Comentar apenas no horário do almoço com os colegas",
+                "Guardar a informação para não interromper a produção",
+                "Relatar imediatamente ao responsável/CIPA por meio dos canais oficiais",
+                "Apenas postar uma foto nas redes sociais alertando os amigos"
+            ],
+            correct: 2,
+            explanation: "Na indústria, a comunicação de riscos deve ser imediata e seguir os canais oficiais para evitar acidentes."
+        },
+        {
+            phase: "Fase 3: Prática Profissional",
+            question: "A comunicação não verbal (postura, contato visual, expressões) representa grande parte da nossa mensagem. Na indústria, isso afeta:",
+            options: [
+                "Apenas a estética do ambiente",
+                "O trabalho em equipe, a liderança e a postura de segurança",
+                "Apenas o setor de recursos humanos",
+                "Não tem relevância prática no chão de fábrica"
+            ],
+            correct: 1,
+            explanation: "A postura corporal e as expressões transmitem atenção, compromisso com a segurança e clareza no trabalho em equipe."
+        }
+    ];
+
+    let currentQuestion = 0;
+    let score = 0;
+    let answered = false;
+
+    function startGame() {
+        document.getElementById("start-screen").classList.remove("active");
+        document.getElementById("game-screen").classList.add("active");
+        currentQuestion = 0;
+        score = 0;
+        document.getElementById("score").innerText = score;
+        loadQuestion();
+    }
+
+    function loadQuestion() {
+        answered = false;
+        const q = questions[currentQuestion];
+        
+        document.getElementById("phase-tag").innerText = q.phase;
+        document.getElementById("question-text").innerText = q.question;
+        document.getElementById("feedback").className = "feedback";
+        document.getElementById("next-btn").style.display = "none";
+
+        const container = document.getElementById("options-container");
+        container.innerHTML = "";
+
+        q.options.forEach((option, index) => {
+            const btn = document.createElement("button");
+            btn.innerText = option;
+            btn.className = "btn-option";
+            btn.onclick = () => selectOption(index);
+            container.appendChild(btn);
+        });
+    }
+
+    function selectOption(index) {
+        if (answered) return;
+        answered = true;
+
+        const q = questions[currentQuestion];
+        const feedbackEl = document.getElementById("feedback");
+        const options = document.querySelectorAll(".btn-option");
+
+        if (index === q.correct) {
+            score += 10;
+            document.getElementById("score").innerText = score;
+            feedbackEl.innerText = "Correto! " + q.explanation;
+            feedbackEl.className = "feedback correct";
+            options[index].style.backgroundColor = "#c3e6cb";
+        } else {
+            feedbackEl.innerText = "Incorreto. " + q.explanation;
+            feedbackEl.className = "feedback incorrect";
+            options[index].style.backgroundColor = "#f5c6cb";
+            options[q.correct].style.backgroundColor = "#c3e6cb";
+        }
+
+        document.getElementById("next-btn").style.display = "block";
+    }
+
+    function nextQuestion() {
+        currentQuestion++;
+        if (currentQuestion < questions.length) {
+            loadQuestion();
+        } else {
+            showEndScreen();
+        }
+    }
+
+    function showEndScreen() {
+        document.getElementById("game-screen").classList.remove("active");
+        document.getElementById("end-screen").classList.add("active");
+
+        const maxScore = questions.length * 10;
+        document.getElementById("final-score").innerText = `${score} / ${maxScore} pts`;
+
+        const msgEl = document.getElementById("final-message");
+        if (score === maxScore) {
+            msgEl.innerText = "Excelente! Você domina o processo de comunicação e entende perfeitamente sua importância para a segurança, eficiência e trabalho em equipe no setor industrial.";
+        } else if (score >= maxScore * 0.6) {
+            msgEl.innerText = "Bom trabalho! Você compreende bem os conceitos, mas fique atento aos ruídos e à importância do feedback para garantir um ambiente produtivo e seguro.";
+        } else {
+            msgEl.innerText = "Vale a pena revisar o conteúdo! Lembre-se de que uma falha na comunicação na indústria pode levar a prejuízos e acidentes. Pratique a escuta ativa e o feedback!";
+        }
+    }
+
+    function restartGame() {
+        document.getElementById("end-screen").classList.remove("active");
+        startGame();
+    }
+</script>
+</body>
+</html>

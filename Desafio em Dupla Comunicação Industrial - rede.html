@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desafio em Dupla: Comunicação Industrial (Rede)</title>
+
+    <!-- PeerJS para Conexão P2P em Rede via Token -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+    <style>
+        :root {
+            --p1-color: #0056b3;
+            --p2-color: #d9534f;
+            --bg: #f0f2f5;
+            --card-bg: #ffffff;
+            --success: #28a745;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 15px;
+        }
+
+        .game-container {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            width: 100%;
+            max-width: 700px;
+            padding: 25px;
+            text-align: center;
+        }
+
+        header {
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+        }
+
+        h1 {
+            font-size: 1.4rem;
+            color: #222;
+            margin-bottom: 10px;
+        }
+
+        .scoreboard {
+            display: flex;
+            justify-content: space-around;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        .p1-badge { color: var(--p1-color); }
+        .p2-badge { color: var(--p2-color); }
+
+        .turn-indicator {
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: bold;
+            color: white;
+            transition: background-color 0.3s;
+        }
+
+        .turn-p1 { background-color: var(--p1-color); }
+        .turn-p2 { background-color: var(--p2-color); }
+
+        .screen { display: none; }
+        .active { display: block; }
+
+        .input-group {
+            margin: 15px 0;
+            text-align: left;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+
+        .token-box {
+            background: #e9ecef;
+            border: 1px dashed #6c757d;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-weight: bold;
+            margin-top: 10px;
+            word-break: break-all;
+        }
+
+        .question-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        .options-grid {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        button {
+            background-color: #333;
+            color: white;
+            border: none;
+            padding: 12px 18px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            width: 100%;
+            transition: opacity 0.2s;
+        }
+
+        button:hover { opacity: 0.9; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-option {
+            background-color: #e9ecef;
+            color: #333;
+            text-align: left;
+            border: 1px solid #ced4da;
+        }
+
+        .feedback {
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            display: none;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        .feedback.correct { background-color: #d4edda; color: #155724; display: block; }
+        .feedback.incorrect { background-color: #f8d7da; color: #721c24; display: block; }
+
+        .next-btn {
+            background-color: var(--success);
+            display: none;
+        }
+
+        .podium {
+            margin: 20px 0;
+            font-size: 1.2rem;
+        }
+
+        .waiting-text {
+            font-style: italic;
+            color: #666;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="game-container">
+    <header>
+        <h1>Desafio em Dupla: Comunicação Industrial</h1>
+        <div class="scoreboard">
+            <span class="p1-badge" id="p1-display">Jogador 1: 0 pts</span>
+            <span class="p2-badge" id="p2-display">Jogador 2: 0 pts</span>
+        </div>
+    </header>
+
+    <!-- TELA INICIAL DE LOBBY/REDE -->
+    <div id="start-screen" class="screen active">
+        <p style="margin-bottom: 15px;">Jogo em rede via Token. Escolha como deseja se conectar:</p>
+
+        <div class="input-group">
+            <label for="player-name">Seu Nome:</label>
+            <input type="text" id="player-name" placeholder="Ex: Carlos">
+        </div>
+
+        <div style="margin: 20px 0; border-top: 1px solid #ddd; padding-top: 15px;">
+            <button style="background-color: var(--p1-color);" onclick="criarSala()">🔑 Criar Sala (Jogador 1 - Azul)</button>
+            <div id="host-waiting" style="display:none;" class="waiting-text">
+                <p>Aguardando Jogador 2 conectar...</p>
+                <div class="token-box" id="token-display">Gerando Token...</div>
+            </div>
+        </div>
+
+        <div style="margin: 20px 0; border-top: 1px solid #ddd; padding-top: 15px;">
+            <div class="input-group">
+                <label for="token-input">Token da Sala:</label>
+                <input type="text" id="token-input" placeholder="Cole o token do Jogador 1 aqui">
+            </div>
+            <button style="background-color: var(--p2-color);" onclick="entrarSala()">🎮 Entrar na Sala (Jogador 2 - Vermelho)</button>
+        </div>
+    </div>
+
+    <!-- TELA DO JOGO -->
+    <div id="game-screen" class="screen">
+        <div id="turn-banner" class="turn-indicator turn-p1">Vez de: Player 1</div>
+        <div id="phase-tag" style="font-size: 0.8rem; font-weight: bold; color: #666; text-transform: uppercase; margin-bottom: 8px; text-align: left;"></div>
+        <div class="question-title" id="question-text"></div>
+        <div class="options-grid" id="options-container"></div>
+        <div id="feedback" class="feedback"></div>
+        <button id="next-btn" class="next-btn" onclick="solicitarProximaPergunta()">Passar a Vez / Próxima</button>
+    </div>
+
+    <!-- TELA FINAL -->
+    <div id="end-screen" class="screen">
+        <h2>Resultado Final</h2>
+        <div class="podium" id="winner-declaration"></div>
+        <div style="margin: 15px 0; text-align: left; background: #f8f9fa; padding: 15px; border-radius: 8px;">
+            <p><strong>Pontuações:</strong></p>
+            <p id="final-p1-score" class="p1-badge"></p>
+            <p id="final-p2-score" class="p2-badge"></p>
+        </div>
+        <p style="font-size: 0.9rem; color: #555; margin-bottom: 20px;">
+            Lembrem-se: No ambiente industrial, uma boa comunicação depende do empenho e da clareza de todos da equipe!
+        </p>
+        <button onclick="location.reload()">Jogar Novamente</button>
+    </div>
+</div>
+
+<script>
+    // BANCO DE PERGUNTAS COMPLETO
+    const questions = [
+        {
+            phase: "Fase 1: Elementos da Comunicação",
+            question: "Ao ler uma Ordem de Serviço (OS) em papel para montar uma estrutura, o documento impresso representa qual elemento?",
+            options: ["Emissor", "Canal", "Feedback", "Receptor"],
+            correct: 1,
+            explanation: "O papel/documento físico é o CANAL utilizado para transmitir a mensagem."
+        },
+        {
+            phase: "Fase 1: Elementos da Comunicação",
+            question: "Quando o líder da equipe codifica as metas de produção em um gráfico e apresenta ao time, o time de operadores atua como:",
+            options: ["Emissor", "Código", "Receptor", "Canal"],
+            correct: 2,
+            explanation: "O time que recebe e interpreta a mensagem faz o papel de RECEPTOR."
+        },
+        {
+            phase: "Fase 1: Elementos da Comunicação",
+            question: "Qual das ações abaixo representa a etapa de DECODIFICAÇÃO da mensagem?",
+            options: [
+                "O operador lê o manual e entende como ligar o motor.",
+                "O supervisor grava um áudio no Whatsapp.",
+                "O sinal de som trafega pelo ar na fábrica.",
+                "O técnico escreve o relatório de manutenção."
+            ],
+            correct: 0,
+            explanation: "Decodificação é a tradução e compreensão do código/mensagem feita pelo receptor."
+        },
+        {
+            phase: "Fase 2: Barreiras e Ruídos",
+            question: "Um operário tenta explicar uma falha técnica usando gírias locais para um engenheiro estrangeiro recém-chegado. Isso gera:",
+            options: ["Ruído Físico", "Ruído Semântico", "Ruído Fisiológico", "Feedback Positivo"],
+            correct: 1,
+            explanation: "Ruído Semântico ocorre quando há divergência no significado do código ou das palavras."
+        },
+        {
+            phase: "Fase 2: Barreiras e Ruídos",
+            question: "O cansaço extremo ao final de um turno de 12 horas atrapalha a absorção do treinamento de segurança. Este é um ruído:",
+            options: ["Ambiental", "Mecânico", "Fisiológico", "Semântico"],
+            correct: 2,
+            explanation: "Ruídos Fisiológicos estão ligados ao estado físico do indivíduo (cansaço, dor, sono, audição reduzida)."
+        },
+        {
+            phase: "Fase 2: Barreiras e Ruídos",
+            question: "Passar instruções verbais importantes ao lado de uma prensa em pleno funcionamento sem usar proteção ou apoio visual causa:",
+            options: ["Ruído de Canal / Físico", "Comunicação Assertiva", "Feedback Eficiente", "Decodificação Perfeita"],
+            correct: 0,
+            explanation: "O barulho do ambiente interfere no canal físico da comunicação oral."
+        },
+        {
+            phase: "Fase 3: Prática e Eficiência",
+            question: "Qual é a principal função da 'Escuta Ativa' na rotina da aprendizagem e do trabalho industrial?",
+            options: [
+                "Apenas fingir que está prestando atenção para não desapontar o chefe.",
+                "Ouvir atentamente, processar, fazer perguntas e confirmar o entendimento.",
+                "Interromper o emissor várias vezes para mostrar que já sabe a resposta.",
+                "Anotar as palavras sem se importar com o significado real."
+            ],
+            correct: 1,
+            explanation: "A escuta ativa exige foco total, eliminação de distrações e confirmação da mensagem."
+        },
+        {
+            phase: "Fase 3: Prática e Eficiência",
+            question: "O que é o conceito de 'Feedback em Alça Fechada' (Closed-loop communication) muito usado na indústria?",
+            options: [
+                "Guardar as dúvidas para si mesmo.",
+                "O receptor repete os pontos-chave da ordem recebida para garantir que entendeu.",
+                "Enviar e-mails sem aguardar resposta.",
+                "Ignorar os erros cometidos pelos colegas."
+            ],
+            correct: 1,
+            explanation: "Confirmar a mensagem repetindo-a garante alinhamento e reduz a zero o erro por má interpretação."
+        },
+        {
+            phase: "Fase 3: Prática e Eficiência",
+            question: "Um colega está operando uma ferramenta de forma incorreta. Como dar um feedback construtivo?",
+            options: [
+                "Gritar com ele na frente de todos da fábrica.",
+                "Apontar o erro com clareza, em particular, e orientar o procedimento correto de segurança.",
+                "Não falar nada para evitar brigas na equipe.",
+                "Ir embora e deixar o colega se desкруjar."
+            ],
+            correct: 1,
+            explanation: "Feedbacks devem ser objetivos, focados no fato/procedimento e orientados à melhoria contínua."
+        },
+        {
+            phase: "Fase 4: Segurança e Profissionalismo",
+            question: "Uma falha de comunicação na passagem de turno ocultou o vazamento de um fluido inflamável. Isso demonstra que:",
+            options: ["A comunicação formal em ambientes industriais é um pilar direto da Segurança do Trabalho.", "Relatórios de passagem de turno são apenas burocracia sem valor prático.", "Erros de comunicação só trazem prejuízos financeiros, sem afetar vidas.", "A responsabilidade pela segurança é apenas do técnico de segurança."],
+            correct: 0,
+            explanation: "A clareza na comunicação industrial previne acidentes graves e garante a integridade da equipe."
+        }
+    ];
+
+    // VARIÁVEIS DE REDE E ESTADO
+    let peer = null;
+    let conn = null;
+    let isHost = false;
+    let myPlayerId = null; // 1 ou 2
+
+    let gameState = {
+        p1Name: "Jogador 1",
+        p2Name: "Jogador 2",
+        p1Score: 0,
+        p2Score: 0,
+        currentTurn: 1, // 1 ou 2
+        currentQuestionIndex: 0,
+        answered: false,
+        selectedOption: null,
+        gameStarted: false,
+        gameEnded: false
+    };
+
+    // SETUP CONEXÃO P2P
+    function criarSala() {
+        const nameInput = document.getElementById('player-name').value.trim();
+        if(!nameInput) { alert("Digite seu nome!"); return; }
+
+        isHost = true;
+        myPlayerId = 1;
+        gameState.p1Name = nameInput;
+
+        const roomToken = 'com-ind-' + Math.random().toString(36).substring(2, 8);
+        
+        peer = new Peer(roomToken);
+
+        peer.on('open', (id) => {
+            document.getElementById('host-waiting').style.display = 'block';
+            document.getElementById('token-display').innerText = id;
+        });
+
+        peer.on('connection', (connection) => {
+            conn = connection;
+            setupConnectionListeners();
+        });
+    }
+
+    function entrarSala() {
+        const nameInput = document.getElementById('player-name').value.trim();
+        const tokenInput = document.getElementById('token-input').value.trim();
+
+        if(!nameInput || !tokenInput) { alert("Preencha seu nome e o token da sala!"); return; }
+
+        isHost = false;
+        myPlayerId = 2;
+        gameState.p2Name = nameInput;
+
+        peer = new Peer();
+
+        peer.on('open', () => {
+            conn = peer.connect(tokenInput);
+            setupConnectionListeners();
+        });
+    }
+
+    function setupConnectionListeners() {
+        conn.on('open', () => {
+            if(!isHost) {
+                // Jogador 2 envia seu nome para o Host
+                conn.send({ type: 'JOIN', p2Name: gameState.p2Name });
+            } else {
+                // Host inicia o jogo ao receber conexão
+                gameState.gameStarted = true;
+                broadcastState();
+                iniciarJogoLocal();
+            }
+        });
+
+        conn.on('data', (data) => {
+            if(data.type === 'JOIN' && isHost) {
+                gameState.p2Name = data.p2Name;
+                gameState.gameStarted = true;
+                broadcastState();
+                iniciarJogoLocal();
+            }
+
+            if(data.type === 'STATE_UPDATE') {
+                gameState = data.state;
+                renderUI();
+            }
+
+            if(data.type === 'ACTION_ANSWER' && isHost) {
+                processAnswer(data.optionIndex);
+            }
+
+            if(data.type === 'ACTION_NEXT' && isHost) {
+                processNextQuestion();
+            }
+        });
+    }
+
+    function broadcastState() {
+        if(isHost && conn && conn.open) {
+            conn.send({ type: 'STATE_UPDATE', state: gameState });
+        }
+        renderUI();
+    }
+
+    function iniciarJogoLocal() {
+        document.getElementById('start-screen').classList.remove('active');
+        document.getElementById('game-screen').classList.add('active');
+        renderUI();
+    }
+
+    // LÓGICA DO JOGO
+    function processAnswer(optionIndex) {
+        if(gameState.answered) return;
+
+        gameState.answered = true;
+        gameState.selectedOption = optionIndex;
+
+        const currentQ = questions[gameState.currentQuestionIndex];
+        if(optionIndex === currentQ.correct) {
+            if(gameState.currentTurn === 1) gameState.p1Score += 10;
+            else gameState.p2Score += 10;
+        }
+
+        broadcastState();
+    }
+
+    function processNextQuestion() {
+        gameState.currentQuestionIndex++;
+        gameState.answered = false;
+        gameState.selectedOption = null;
+
+        if(gameState.currentQuestionIndex >= questions.length) {
+            gameState.gameEnded = true;
+        } else {
+            // Alterna a vez entre Player 1 e Player 2
+            gameState.currentTurn = gameState.currentTurn === 1 ? 2 : 1;
+        }
+
+        broadcastState();
+    }
+
+    // EVENTOS DOS BOTÕES
+    function responder(index) {
+        if(gameState.currentTurn !== myPlayerId || gameState.answered) return;
+
+        if(isHost) {
+            processAnswer(index);
+        } else {
+            conn.send({ type: 'ACTION_ANSWER', optionIndex: index });
+        }
+    }
+
+    function solicitarProximaPergunta() {
+        if(gameState.currentTurn !== myPlayerId || !gameState.answered) return;
+
+        if(isHost) {
+            processNextQuestion();
+        } else {
+            conn.send({ type: 'ACTION_NEXT' });
+        }
+    }
+
+    // ATUALIZAÇÃO VISUAL DA INTERFACE
+    function renderUI() {
+        if(!gameState.gameStarted) return;
+
+        if(gameState.gameEnded) {
+            document.getElementById('game-screen').classList.remove('active');
+            document.getElementById('end-screen').classList.add('active');
+
+            document.getElementById('final-p1-score').innerText = `${gameState.p1Name}: ${gameState.p1Score} pts`;
+            document.getElementById('final-p2-score').innerText = `${gameState.p2Name}: ${gameState.p2Score} pts`;
+
+            const winnerText = document.getElementById('winner-declaration');
+            if(gameState.p1Score > gameState.p2Score) {
+                winnerText.innerText = `🏆 ${gameState.p1Name} venceu o desafio!`;
+                winnerText.style.color = "var(--p1-color)";
+            } else if(gameState.p2Score > gameState.p1Score) {
+                winnerText.innerText = `🏆 ${gameState.p2Name} venceu o desafio!`;
+                winnerText.style.color = "var(--p2-color)";
+            } else {
+                winnerText.innerText = "🤝 Empate perfeito! Excelente sintonia da dupla!";
+                winnerText.style.color = "#333";
+            }
+            return;
+        }
+
+        // Atualizar tela de jogo
+        document.getElementById('start-screen').classList.remove('active');
+        document.getElementById('game-screen').classList.add('active');
+
+        // Placar
+        document.getElementById('p1-display').innerText = `${gameState.p1Name}: ${gameState.p1Score} pts`;
+        document.getElementById('p2-display').innerText = `${gameState.p2Name}: ${gameState.p2Score} pts`;
+
+        // Indicador de Turno
+        const turnBanner = document.getElementById('turn-banner');
+        const activeName = gameState.currentTurn === 1 ? gameState.p1Name : gameState.p2Name;
+        
+        turnBanner.innerText = `Vez de: ${activeName} ${gameState.currentTurn === myPlayerId ? ' (SUA VEZ)' : ' (Aguarde)'}`;
+        turnBanner.className = `turn-indicator ${gameState.currentTurn === 1 ? 'turn-p1' : 'turn-p2'}`;
+
+        // Pergunta e Opções
+        const currentQ = questions[gameState.currentQuestionIndex];
+        document.getElementById('phase-tag').innerText = currentQ.phase;
+        document.getElementById('question-text').innerText = `${gameState.currentQuestionIndex + 1}. ${currentQ.question}`;
+
+        const optionsGrid = document.getElementById('options-container');
+        optionsGrid.innerHTML = '';
+
+        const isMyTurn = gameState.currentTurn === myPlayerId;
+
+        currentQ.options.forEach((opt, idx) => {
+            const btn = document.createElement('button');
+            btn.className = 'btn-option';
+            btn.innerText = opt;
+            
+            // Desabilita botões se não for a vez do jogador ou se já respondeu
+            if(!isMyTurn || gameState.answered) {
+                btn.disabled = true;
+            }
+
+            btn.onclick = () => responder(idx);
+            optionsGrid.appendChild(btn);
+        });
+
+        // Feedback
+        const feedbackEl = document.getElementById('feedback');
+        const nextBtn = document.getElementById('next-btn');
+
+        if(gameState.answered) {
+            const isCorrect = gameState.selectedOption === currentQ.correct;
+            feedbackEl.innerText = `${isCorrect ? '✅ Resposta Correta!' : '❌ Resposta Incorreta!'} ${currentQ.explanation}`;
+            feedbackEl.className = `feedback ${isCorrect ? 'correct' : 'incorrect'}`;
+
+            if(isMyTurn) {
+                nextBtn.style.display = 'block';
+            } else {
+                nextBtn.style.display = 'none';
+            }
+        } else {
+            feedbackEl.style.display = 'none';
+            nextBtn.style.display = 'none';
+        }
+    }
+</script>
+</body>
+</html>
